@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>旅游搭子</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f0f0ee;display:flex;justify-content:center;min-height:100vh}
+#app{width:100%;max-width:420px;background:#fff;min-height:100vh;display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.12)}
+:root{--primary:#E8541A;--navy:#1E3A5F;--bg:#FAFAF8}
+
+/* ── Layout ── */
+.screen{flex:1;overflow-y:auto;padding-bottom:72px;background:var(--bg)}
+.topbar{background:#fff;padding:16px 16px 12px;border-bottom:1px solid #f0f0f0;position:sticky;top:0;z-index:10}
+.topbar h1{font-size:18px;font-weight:800;color:var(--navy)}
+.topbar p{font-size:12px;color:#999;margin-top:2px}
+
+/* ── Bottom Nav ── */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:#fff;border-top:1px solid #eee;display:flex;z-index:100;box-shadow:0 -4px 20px rgba(0,0,0,.06)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0 6px;cursor:pointer;border:none;background:none;transition:color .2s}
+.nav-btn .ico{font-size:22px;margin-bottom:2px}
+.nav-btn .lbl{font-size:10px;font-weight:500;color:#aaa}
+.nav-btn.active .lbl{color:var(--primary);font-weight:700}
+
+/* ── Cards ── */
+.card{background:#fff;border-radius:16px;border:1px solid #f0f0f0;margin:0 14px 10px;overflow:hidden;transition:box-shadow .2s}
+.card:hover{box-shadow:0 4px 20px rgba(0,0,0,.08);cursor:pointer}
+.card-header{padding:14px 16px 10px}
+.card-title{font-size:15px;font-weight:700;color:#1a1a1a}
+.card-sub{font-size:12px;color:#999;margin-top:3px}
+
+/* ── Status badge ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.badge-plan{background:#e3f0ff;color:#1a73e8}
+.badge-go{background:#e6f7ee;color:#1e8a4a}
+.badge-done{background:#f5f5f5;color:#888}
+
+/* ── Tags ── */
+.tag{display:inline-block;background:#f5f5f5;color:#555;border-radius:20px;font-size:11px;padding:2px 8px;margin:2px 2px 0 0}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:80px;right:calc(50% - 210px + 16px);width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 16px rgba(232,84,26,.4);display:flex;align-items:center;justify-content:center;z-index:99;transition:transform .15s}
+.fab:active{transform:scale(.93)}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .2s}
+.btn:active{opacity:.8}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-outline{background:#fff;color:var(--navy);border:1.5px solid #ddd}
+.btn-danger{background:#ff4444;color:#fff}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:8px}
+
+/* ── Forms ── */
+.form-group{margin-bottom:14px}
+.form-label{font-size:12px;font-weight:600;color:#555;margin-bottom:5px;display:block}
+.form-input{width:100%;padding:10px 12px;border:1.5px solid #e8e8e8;border-radius:10px;font-size:14px;font-family:inherit;background:#fafafa;transition:border-color .2s;outline:none}
+.form-input:focus{border-color:var(--primary);background:#fff}
+textarea.form-input{resize:vertical;min-height:70px}
+select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+
+/* ── Modal ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal{width:100%;max-width:420px;background:#fff;border-radius:20px 20px 0 0;padding:20px 20px 32px;max-height:88vh;overflow-y:auto;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-title{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:18px}
+.modal-actions{display:flex;gap:10px;margin-top:18px}
+.modal-actions .btn{flex:1}
+
+/* ── Map ── */
+#leaflet-map{height:calc(100vh - 130px);width:100%}
+.leaflet-container{font-family:-apple-system,'PingFang SC',sans-serif}
+
+/* ── Packing ── */
+.packing-item{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;transition:background .2s}
+.packing-item:hover{background:#fafafa}
+.packing-item.checked .item-name{text-decoration:line-through;color:#bbb}
+.item-check{width:22px;height:22px;border:2px solid #ddd;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;margin-right:12px}
+.item-check.checked{background:var(--primary);border-color:var(--primary);color:#fff}
+.item-name{flex:1;font-size:14px;font-weight:500}
+.item-cat{font-size:10px;color:#aaa;background:#f5f5f5;padding:2px 6px;border-radius:10px;margin-left:8px}
+
+/* ── Stats ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 14px 0}
+.stat-card{background:#fff;border-radius:16px;border:1px solid #f0f0f0;padding:16px;display:flex;flex-direction:column;gap:4px}
+.stat-emoji{font-size:24px}
+.stat-val{font-size:22px;font-weight:800;color:var(--navy)}
+.stat-lbl{font-size:11px;color:#aaa}
+.progress-bar{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--primary);border-radius:3px;transition:width .4s}
+
+/* ── Empty state ── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 30px;text-align:center}
+.empty .e-ico{font-size:64px;margin-bottom:16px}
+.empty .e-title{font-size:17px;font-weight:700;color:#333;margin-bottom:8px}
+.empty .e-sub{font-size:13px;color:#aaa;line-height:1.6}
+
+/* ── Trip detail ── */
+.day-row{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid #f5f5f5}
+.day-dot{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+.trip-cover{height:160px;background:linear-gradient(135deg,var(--primary),var(--navy));display:flex;align-items:center;justify-content:center;font-size:60px;position:relative}
+.trip-cover img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+
+/* ── Search ── */
+.search-bar{padding:10px 14px;position:sticky;top:56px;background:var(--bg);z-index:9}
+.search-input{width:100%;padding:9px 14px 9px 36px;border:1.5px solid #e8e8e8;border-radius:10px;font-size:14px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E") no-repeat 12px center;outline:none;font-family:inherit}
+.search-input:focus{border-color:var(--primary)}
+
+/* ── Filter chips ── */
+.chips{display:flex;gap:8px;padding:0 14px 10px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1.5px solid #e8e8e8;background:#fff;color:#555;cursor:pointer;white-space:nowrap;transition:all .2s}
+.chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ════════════════ TRIPS TAB ════════════════ -->
+  <template v-if="tab===0 && !currentTrip">
+    <div class="screen">
+      <div class="topbar">
+        <h1>✈️ 我的旅行</h1>
+        <p>记录每一段旅途</p>
+      </div>
+      <div class="search-bar">
+        <input class="search-input" v-model="search" placeholder="搜索旅行、地点、标签…">
+      </div>
+      <div class="chips">
+        <div class="chip" :class="{active:statusFilter===''}" @click="statusFilter=''">全部</div>
+        <div class="chip" :class="{active:statusFilter==='upcoming'}" @click="statusFilter='upcoming'">计划中</div>
+        <div class="chip" :class="{active:statusFilter==='ongoing'}" @click="statusFilter='ongoing'">进行中</div>
+        <div class="chip" :class="{active:statusFilter==='completed'}" @click="statusFilter='completed'">已完成</div>
+      </div>
+
+      <div v-if="filteredTrips.length===0" class="empty">
+        <div class="e-ico">🗺️</div>
+        <div class="e-title">还没有旅行记录</div>
+        <div class="e-sub">点击右下角 + 按钮<br>开始记录你的第一次旅行</div>
+      </div>
+
+      <div v-for="trip in filteredTrips" :key="trip.id" class="card" @click="openTrip(trip)">
+        <div class="trip-cover">
+          <img v-if="trip.cover" :src="trip.cover" @error="trip.cover=null">
+          <span v-else>✈️</span>
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.5) 0%,transparent 60%)"></div>
+          <div style="position:absolute;bottom:10px;left:14px;right:14px">
+            <div style="color:#fff;font-size:16px;font-weight:800;text-shadow:0 1px 4px rgba(0,0,0,.4)">{{trip.title}}</div>
+          </div>
+        </div>
+        <div class="card-header">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div class="card-sub">📅 {{formatDateRange(trip.startDate,trip.endDate)}}</div>
+            <span class="badge" :class="'badge-'+trip.status">{{statusLabel(trip.status)}}</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:12px;color:#666;margin-bottom:8px">
+            <span>⏱️ {{tripDays(trip)}} 天</span>
+            <span v-if="tripLocCount(trip.id)">📍 {{tripLocCount(trip.id)}} 个打卡点</span>
+          </div>
+          <div v-if="trip.tags&&trip.tags.length">
+            <span v-for="t in trip.tags" :key="t" class="tag">{{t}}</span>
+          </div>
+        </div>
+      </div>
+      <div style="height:16px"></div>
+    </div>
+    <button class="fab" @click="openModal('addTrip')">+</button>
+  </template>
+
+  <!-- ════ TRIP DETAIL ════ -->
+  <template v-if="tab===0 && currentTrip">
+    <div class="screen">
+      <div class="trip-cover">
+        <img v-if="currentTrip.cover" :src="currentTrip.cover">
+        <span v-else>✈️</span>
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6) 0%,transparent 60%)"></div>
+        <div style="position:absolute;top:12px;left:12px">
+          <button @click="currentTrip=null" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;backdrop-filter:blur(4px)">‹</button>
+        </div>
+        <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px">
+          <button @click="editTrip(currentTrip)" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:14px;cursor:pointer;backdrop-filter:blur(4px)">✏️</button>
+          <button @click="deleteTrip(currentTrip)" style="background:rgba(255,0,0,.3);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:14px;cursor:pointer;backdrop-filter:blur(4px)">🗑</button>
+        </div>
+        <div style="position:absolute;bottom:12px;left:14px;right:14px">
+          <div style="color:#fff;font-size:20px;font-weight:800">{{currentTrip.title}}</div>
+          <div style="color:rgba(255,255,255,.8);font-size:12px;margin-top:4px">{{formatDateRange(currentTrip.startDate,currentTrip.endDate)}}</div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:flex;padding:16px;gap:0;background:#fff;border-bottom:1px solid #f0f0f0">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:var(--navy)">{{tripDays(currentTrip)}}</div>
+          <div style="font-size:11px;color:#aaa">天</div>
+        </div>
+        <div style="width:1px;background:#f0f0f0"></div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:var(--navy)">{{tripLocCount(currentTrip.id)}}</div>
+          <div style="font-size:11px;color:#aaa">打卡点</div>
+        </div>
+        <div style="width:1px;background:#f0f0f0"></div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:var(--navy)">
+            <span :class="'badge badge-'+currentTrip.status" style="font-size:11px">{{statusLabel(currentTrip.status)}}</span>
+          </div>
+          <div style="font-size:11px;color:#aaa">状态</div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div v-if="currentTrip.description" style="padding:14px 16px;background:#fff;border-bottom:1px solid #f5f5f5">
+        <div style="font-size:13px;color:#444;line-height:1.6">{{currentTrip.description}}</div>
+      </div>
+
+      <!-- Tags -->
+      <div v-if="currentTrip.tags&&currentTrip.tags.length" style="padding:10px 16px;background:#fff;border-bottom:1px solid #f5f5f5">
+        <span v-for="t in currentTrip.tags" :key="t" class="tag">{{t}}</span>
+      </div>
+
+      <!-- Locations in this trip -->
+      <div style="padding:16px 16px 8px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:15px;font-weight:800;color:var(--navy)">📍 打卡地点</div>
+        <button class="btn btn-primary btn-sm" @click="openModal('addLoc')">+ 添加</button>
+      </div>
+      <div v-if="tripLocs.length===0" style="padding:20px;text-align:center;color:#bbb;font-size:13px">还没有打卡点，点击添加</div>
+      <div v-for="loc in tripLocs" :key="loc.id" class="card" style="margin:0 14px 8px">
+        <div style="padding:12px 14px;display:flex;align-items:center;gap:12px">
+          <div style="font-size:28px">{{catEmoji(loc.category)}}</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:700">{{loc.name}}</div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px">{{catLabel(loc.category)}} {{loc.notes?'· '+loc.notes:''}}</div>
+          </div>
+          <button @click.stop="deleteLoc(loc)" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px">✕</button>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div style="padding:16px 16px 8px;font-size:15px;font-weight:800;color:var(--navy)">📓 旅行笔记</div>
+      <div style="padding:0 14px 24px">
+        <textarea class="form-input" placeholder="记录这次旅行的感受…" rows="5"
+          :value="currentTrip.notes"
+          @change="currentTrip.notes=$event.target.value;saveAll()"></textarea>
+      </div>
+    </div>
+    <button class="fab" @click="tab=1;focusTripId=currentTrip.id;initMap()">🗺️</button>
+  </template>
+
+  <!-- ════════════════ MAP TAB ════════════════ -->
+  <template v-if="tab===1">
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 56px)">
+      <div class="topbar">
+        <h1>🗺️ 地图</h1>
+        <p>点击地图添加打卡点</p>
+      </div>
+      <div id="leaflet-map"></div>
+    </div>
+    <!-- Map legend -->
+    <div style="position:fixed;bottom:72px;left:50%;transform:translateX(-50%);width:100%;max-width:420px;pointer-events:none">
+      <div style="margin:0 14px;background:rgba(255,255,255,.95);border-radius:14px;padding:10px 16px;display:flex;justify-content:space-around;box-shadow:0 4px 20px rgba(0,0,0,.1)">
+        <div style="text-align:center"><div>🏛️</div><div style="font-size:10px;color:#888">景点</div></div>
+        <div style="text-align:center"><div>🍜</div><div style="font-size:10px;color:#888">餐饮</div></div>
+        <div style="text-align:center"><div>🏨</div><div style="font-size:10px;color:#888">住宿</div></div>
+        <div style="text-align:center"><div>📍</div><div style="font-size:10px;color:#888">其他</div></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ════════════════ PACKING TAB ════════════════ -->
+  <template v-if="tab===2 && !currentList">
+    <div class="screen">
+      <div class="topbar">
+        <h1>🎒 行李清单</h1>
+        <p>出发前不漏任何物品</p>
+      </div>
+
+      <div v-if="packingLists.length===0" class="empty">
+        <div class="e-ico">🎒</div>
+        <div class="e-title">还没有清单</div>
+        <div class="e-sub">创建你的行李清单</div>
+      </div>
+
+      <div v-for="list in packingLists" :key="list.id" class="card" @click="openList(list)">
+        <div class="card-header" style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:36px">{{listProgress(list.id)===1?'✅':'🎒'}}</div>
+          <div style="flex:1">
+            <div class="card-title">{{list.name}}</div>
+            <div class="card-sub" style="margin:4px 0">
+              {{listChecked(list.id)}} / {{listTotal(list.id)}} 已准备
+            </div>
+            <div class="progress-bar" style="margin-top:6px">
+              <div class="progress-fill" :style="{width:(listProgress(list.id)*100)+'%'}"></div>
+            </div>
+          </div>
+          <button @click.stop="deleteList(list)" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:18px">✕</button>
+        </div>
+      </div>
+      <div style="height:16px"></div>
+    </div>
+    <button class="fab" @click="openModal('addList')">+</button>
+  </template>
+
+  <!-- ════ LIST DETAIL ════ -->
+  <template v-if="tab===2 && currentList">
+    <div class="screen">
+      <div class="topbar" style="display:flex;align-items:center;gap:12px">
+        <button @click="currentList=null" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--navy)">‹</button>
+        <div>
+          <h1>{{currentList.name}}</h1>
+          <p>{{listChecked(currentList.id)}} / {{listTotal(currentList.id)}} 已准备</p>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div style="padding:12px 16px 0;background:#fff;border-bottom:1px solid #f0f0f0">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:700;color:var(--primary)">{{(listProgress(currentList.id)*100).toFixed(0)}}% 完成</span>
+          <button @click="uncheckAll()" style="font-size:11px;color:#aaa;background:none;border:none;cursor:pointer">重置全部</button>
+        </div>
+        <div class="progress-bar" style="margin-bottom:14px;height:8px">
+          <div class="progress-fill" :style="{width:(listProgress(currentList.id)*100)+'%',height:'100%'}"></div>
+        </div>
+        <!-- Category filter -->
+        <div class="chips" style="padding:0 0 10px">
+          <div class="chip" :class="{active:itemFilter===''}" @click="itemFilter=''">全部</div>
+          <div v-for="cat in usedCategories" :key="cat" class="chip" :class="{active:itemFilter===cat}" @click="itemFilter=cat">{{cat}}</div>
+        </div>
+      </div>
+
+      <!-- Items -->
+      <div v-if="filteredItems.length===0" style="padding:30px;text-align:center;color:#bbb;font-size:13px">
+        还没有物品，点击下方 + 添加
+      </div>
+      <div v-for="item in filteredItems" :key="item.id"
+        class="packing-item" :class="{checked:item.isChecked}">
+        <div class="item-check" :class="{checked:item.isChecked}" @click="toggleItem(item)">
+          <span v-if="item.isChecked" style="font-size:12px">✓</span>
+        </div>
+        <span class="item-name">{{item.name}}</span>
+        <span class="item-cat">{{item.category}}</span>
+        <button @click="deleteItem(item)" style="background:none;border:none;color:#ddd;cursor:pointer;font-size:16px;margin-left:8px">✕</button>
+      </div>
+
+      <!-- Quick add suggestions -->
+      <div style="padding:14px 16px">
+        <div style="font-size:12px;font-weight:600;color:#888;margin-bottom:8px">快速添加</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <div v-for="qi in quickItems" :key="qi[0]"
+            style="padding:5px 12px;background:#f5f5f5;border-radius:20px;font-size:12px;cursor:pointer"
+            @click="quickAdd(qi)">+ {{qi[0]}}</div>
+        </div>
+      </div>
+    </div>
+    <button class="fab" @click="openModal('addItem')">+</button>
+  </template>
+
+  <!-- ════════════════ STATS TAB ════════════════ -->
+  <template v-if="tab===3">
+    <div class="screen">
+      <div class="topbar">
+        <h1>📊 旅行统计</h1>
+        <p>你的旅途足迹</p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-emoji">✈️</div>
+          <div class="stat-val">{{stats.trips}}</div>
+          <div class="stat-lbl">次旅行</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-emoji">📅</div>
+          <div class="stat-val">{{stats.days}}</div>
+          <div class="stat-lbl">旅行天数</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-emoji">📍</div>
+          <div class="stat-val">{{stats.locations}}</div>
+          <div class="stat-lbl">打卡地点</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-emoji">🎒</div>
+          <div class="stat-val">{{stats.lists}}</div>
+          <div class="stat-lbl">行李清单</div>
+        </div>
+      </div>
+
+      <!-- Monthly chart -->
+      <div style="margin:14px;background:#fff;border-radius:16px;border:1px solid #f0f0f0;padding:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">📈 月度旅行记录</div>
+        <canvas id="monthlyChart" height="140"></canvas>
+      </div>
+
+      <!-- Status breakdown -->
+      <div style="margin:0 14px 14px;background:#fff;border-radius:16px;border:1px solid #f0f0f0;padding:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">🗂️ 旅行状态分布</div>
+        <div v-for="(count,status) in stats.byStatus" :key="status" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+            <span>{{statusLabel(status)}}</span>
+            <span style="font-weight:700">{{count}}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{width:stats.trips?((count/stats.trips)*100)+'%':'0%'}"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Milestones -->
+      <div style="margin:0 14px 14px;background:#fff;border-radius:16px;border:1px solid #f0f0f0;padding:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">🏆 旅行成就</div>
+        <div v-for="m in milestones" :key="m.label"
+          style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f8f8f8">
+          <span :style="{fontSize:'24px',filter:m.unlocked?'':'grayscale(1) opacity(.3)'}">{{m.icon}}</span>
+          <span :style="{fontSize:'13px',fontWeight:m.unlocked?700:400,color:m.unlocked?'#333':'#bbb'}">{{m.label}}</span>
+          <span v-if="m.unlocked" style="margin-left:auto;color:#4CAF50;font-size:14px">✓</span>
+        </div>
+      </div>
+
+      <!-- Top tags -->
+      <div v-if="stats.topTags.length" style="margin:0 14px 30px;background:#fff;border-radius:16px;border:1px solid #f0f0f0;padding:16px">
+        <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px">🏷️ 常去主题</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <div v-for="t in stats.topTags" :key="t.tag"
+            style="padding:6px 14px;background:rgba(232,84,26,.1);color:var(--primary);border-radius:20px;font-size:13px;font-weight:600">
+            {{t.tag}} <span style="font-size:11px;opacity:.7">{{t.count}}次</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ════════════════ BOTTOM NAV ════════════════ -->
+  <div class="nav">
+    <button class="nav-btn" :class="{active:tab===0}" @click="tab=0;currentTrip=null">
+      <div class="ico">📖</div>
+      <div class="lbl">旅行</div>
+    </button>
+    <button class="nav-btn" :class="{active:tab===1}" @click="switchToMap()">
+      <div class="ico">🗺️</div>
+      <div class="lbl">地图</div>
+    </button>
+    <button class="nav-btn" :class="{active:tab===2}" @click="tab=2;currentList=null">
+      <div class="ico">🎒</div>
+      <div class="lbl">清单</div>
+    </button>
+    <button class="nav-btn" :class="{active:tab===3}" @click="tab=3;initChart()">
+      <div class="ico">📊</div>
+      <div class="lbl">统计</div>
+    </button>
+  </div>
+
+  <!-- ════════════════ MODALS ════════════════ -->
+
+  <!-- Add/Edit Trip -->
+  <div class="overlay" v-if="modal==='addTrip'||modal==='editTrip'" @click.self="modal=''">
+    <div class="modal">
+      <div class="modal-title">{{modal==='addTrip'?'✈️ 新建旅行':'✏️ 编辑旅行'}}</div>
+      <div class="form-group">
+        <label class="form-label">旅行标题 *</label>
+        <input class="form-input" v-model="form.title" placeholder="例如：云南十日游">
+      </div>
+      <div class="form-group">
+        <label class="form-label">简介</label>
+        <textarea class="form-input" v-model="form.description" placeholder="这次旅行的主题…" rows="2"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" class="form-group">
+        <div>
+          <label class="form-label">出发日期 *</label>
+          <input class="form-input" type="date" v-model="form.startDate">
+        </div>
+        <div>
+          <label class="form-label">返回日期</label>
+          <input class="form-input" type="date" v-model="form.endDate">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">状态</label>
+        <select class="form-input" v-model="form.status">
+          <option value="upcoming">计划中</option>
+          <option value="ongoing">进行中</option>
+          <option value="completed">已完成</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">标签（用空格或逗号分隔）</label>
+        <input class="form-input" v-model="form.tagsRaw" placeholder="海边 登山 文化 美食">
+      </div>
+      <div class="form-group">
+        <label class="form-label">封面图片</label>
+        <input type="file" accept="image/*" @change="pickCover" style="display:none" id="cover-input">
+        <button class="btn btn-outline" style="width:100%" onclick="document.getElementById('cover-input').click()">
+          📷 {{form.cover?'已选择图片，点击更换':'选择封面照片'}}
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="modal=''">取消</button>
+        <button class="btn btn-primary" @click="saveTrip()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Location -->
+  <div class="overlay" v-if="modal==='addLoc'" @click.self="modal=''">
+    <div class="modal">
+      <div class="modal-title">📍 添加打卡点</div>
+      <div class="form-group">
+        <label class="form-label">地点名称 *</label>
+        <input class="form-input" v-model="locForm.name" placeholder="例如：天安门广场" autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">分类</label>
+        <select class="form-input" v-model="locForm.category">
+          <option value="attraction">🏛️ 景点</option>
+          <option value="food">🍜 餐饮</option>
+          <option value="accommodation">🏨 住宿</option>
+          <option value="transport">🚌 交通</option>
+          <option value="other">📍 其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">备注</label>
+        <input class="form-input" v-model="locForm.notes" placeholder="心得、评分…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">坐标（可选，在地图 Tab 精确标记）</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <input class="form-input" v-model="locForm.lat" type="number" placeholder="纬度" step="0.0001">
+          <input class="form-input" v-model="locForm.lng" type="number" placeholder="经度" step="0.0001">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="modal=''">取消</button>
+        <button class="btn btn-primary" @click="saveLoc()">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add List -->
+  <div class="overlay" v-if="modal==='addList'" @click.self="modal=''">
+    <div class="modal">
+      <div class="modal-title">🎒 新建清单</div>
+      <div class="form-group">
+        <label class="form-label">清单名称 *</label>
+        <input class="form-input" v-model="listForm.name" placeholder="例如：云南旅行" autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">基于模板</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div v-for="tmpl in templates" :key="tmpl"
+            class="chip" :class="{active:listForm.template===tmpl}"
+            @click="listForm.template=listForm.template===tmpl?'':tmpl">{{tmpl}}</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="modal=''">取消</button>
+        <button class="btn btn-primary" @click="saveList()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Item -->
+  <div class="overlay" v-if="modal==='addItem'" @click.self="modal=''">
+    <div class="modal">
+      <div class="modal-title">➕ 添加物品</div>
+      <div class="form-group">
+        <label class="form-label">物品名称 *</label>
+        <input class="form-input" v-model="itemForm.name" placeholder="例如：防晒霜" autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">分类</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <div v-for="cat in itemCategories" :key="cat"
+            class="chip" :class="{active:itemForm.category===cat}"
+            @click="itemForm.category=cat">{{cat}}</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="modal=''">取消</button>
+        <button class="btn btn-primary" @click="saveItem()">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map location picker modal -->
+  <div class="overlay" v-if="modal==='mapLoc'" @click.self="modal=''">
+    <div class="modal">
+      <div class="modal-title">📍 添加地图标记</div>
+      <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#555">
+        位置：{{mapClickPos?mapClickPos.lat.toFixed(5)+', '+mapClickPos.lng.toFixed(5):'未选择'}}
+      </div>
+      <div class="form-group">
+        <label class="form-label">地点名称 *</label>
+        <input class="form-input" v-model="locForm.name" placeholder="例如：鼓浪屿">
+      </div>
+      <div class="form-group">
+        <label class="form-label">分类</label>
+        <select class="form-input" v-model="locForm.category">
+          <option value="attraction">🏛️ 景点</option>
+          <option value="food">🍜 餐饮</option>
+          <option value="accommodation">🏨 住宿</option>
+          <option value="transport">🚌 交通</option>
+          <option value="other">📍 其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">关联旅行（可选）</label>
+        <select class="form-input" v-model="locForm.tripId">
+          <option value="">不关联</option>
+          <option v-for="t in trips" :key="t.id" :value="t.id">{{t.title}}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">备注</label>
+        <input class="form-input" v-model="locForm.notes" placeholder="心得、评分…">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="modal=''">取消</button>
+        <button class="btn btn-primary" @click="saveMapLoc()">保存</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const {createApp,ref,computed,reactive,onMounted,watch,nextTick}=Vue;
+
+// ─── Persistence ───────────────────────────────
+const DB={
+  load(k,d){try{return JSON.parse(localStorage.getItem('tc_'+k))??d}catch{return d}},
+  save(k,v){localStorage.setItem('tc_'+k,JSON.stringify(v))}
+};
+
+// ─── Helpers ───────────────────────────────────
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>new Date().toISOString().slice(0,10);
+
+createApp({
+  setup(){
+    // ── State ──────────────────────────────────
+    const tab=ref(0);
+    const modal=ref('');
+    const trips=ref(DB.load('trips',[]));
+    const locations=ref(DB.load('locations',[]));
+    const packingLists=ref(DB.load('lists',[]));
+    const packingItems=ref(DB.load('items',[]));
+    const currentTrip=ref(null);
+    const currentList=ref(null);
+    const search=ref('');
+    const statusFilter=ref('');
+    const itemFilter=ref('');
+    const mapClickPos=ref(null);
+    const focusTripId=ref(null);
+
+    let leafletMap=null;
+    let chartInstance=null;
+
+    // ── Forms ──────────────────────────────────
+    const form=reactive({title:'',description:'',startDate:today(),endDate:'',status:'upcoming',tagsRaw:'',cover:null});
+    const locForm=reactive({name:'',category:'attraction',notes:'',lat:'',lng:'',tripId:''});
+    const listForm=reactive({name:'',template:''});
+    const itemForm=reactive({name:'',category:'其他'});
+
+    // ── Constants ──────────────────────────────
+    const itemCategories=['证件','衣物','电子','日用','医疗','食品','其他'];
+    const quickItems=[
+      ['护照','证件'],['充电宝','电子'],['口罩','医疗'],['防晒霜','日用'],
+      ['换洗衣物','衣物'],['拖鞋','衣物'],['毛巾','日用'],['相机','电子'],
+      ['雨伞','其他'],['零食','食品'],['水杯','其他'],['银行卡','证件'],
+    ];
+    const templates=['基础清单','海边旅行','登山徒步','城市观光'];
+    const templateItems={
+      '基础清单':[['护照/身份证','证件'],['手机充电器','电子'],['移动电源','电子'],['换洗衣物','衣物'],['洗漱用品','日用'],['现金','证件']],
+      '海边旅行':[['防晒霜','日用'],['泳衣','衣物'],['拖鞋','衣物'],['墨镜','日用'],['浮潜装备','其他']],
+      '登山徒步':[['登山鞋','衣物'],['雨衣','衣物'],['能量食品','食品'],['急救包','医疗'],['手电筒','其他'],['地图','其他']],
+      '城市观光':[['舒适步行鞋','衣物'],['相机','电子'],['充电宝','电子'],['折叠雨伞','其他'],['地铁卡','证件']],
+    };
+
+    // ── Save all to localStorage ───────────────
+    const saveAll=()=>{
+      DB.save('trips',trips.value);
+      DB.save('locations',locations.value);
+      DB.save('lists',packingLists.value);
+      DB.save('items',packingItems.value);
+    };
+
+    // ── Computed ───────────────────────────────
+    const filteredTrips=computed(()=>{
+      let list=trips.value;
+      if(statusFilter.value) list=list.filter(t=>t.status===statusFilter.value);
+      if(search.value){
+        const q=search.value.toLowerCase();
+        list=list.filter(t=>t.title.toLowerCase().includes(q)||
+          (t.description||'').toLowerCase().includes(q)||
+          (t.tags||[]).some(g=>g.toLowerCase().includes(q)));
+      }
+      return list.slice().sort((a,b)=>b.startDate.localeCompare(a.startDate));
+    });
+
+    const tripLocs=computed(()=>
+      currentTrip.value ? locations.value.filter(l=>l.tripId===currentTrip.value.id) : []
+    );
+
+    const filteredItems=computed(()=>{
+      if(!currentList.value) return [];
+      const items=packingItems.value.filter(i=>i.listId===currentList.value.id);
+      return itemFilter.value ? items.filter(i=>i.category===itemFilter.value) : items;
+    });
+
+    const usedCategories=computed(()=>{
+      if(!currentList.value) return [];
+      const items=packingItems.value.filter(i=>i.listId===currentList.value.id);
+      return [...new Set(items.map(i=>i.category))];
+    });
+
+    const stats=computed(()=>{
+      const ts=trips.value;
+      const days=ts.reduce((s,t)=>{
+        if(!t.startDate) return s;
+        const e=t.endDate?new Date(t.endDate):new Date(t.startDate);
+        return s+Math.max(1,Math.ceil((e-new Date(t.startDate))/(86400000))+1);
+      },0);
+      const byStatus={upcoming:0,ongoing:0,completed:0};
+      ts.forEach(t=>byStatus[t.status]=(byStatus[t.status]||0)+1);
+      const tagCounts={};
+      ts.forEach(t=>(t.tags||[]).forEach(g=>tagCounts[g]=(tagCounts[g]||0)+1));
+      const topTags=Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([tag,count])=>({tag,count}));
+      return{trips:ts.length,days,locations:locations.value.length,lists:packingLists.value.length,byStatus,topTags};
+    });
+
+    const milestones=computed(()=>[
+      {icon:'🌱',label:'第一次旅行',unlocked:stats.value.trips>=1},
+      {icon:'🗺️',label:'完成 5 次旅行',unlocked:stats.value.trips>=5},
+      {icon:'🏆',label:'完成 10 次旅行',unlocked:stats.value.trips>=10},
+      {icon:'📅',label:'累计旅行 30 天',unlocked:stats.value.days>=30},
+      {icon:'📍',label:'打卡 10 个地点',unlocked:stats.value.locations>=10},
+      {icon:'🎒',label:'创建 3 个清单',unlocked:stats.value.lists>=3},
+    ]);
+
+    // ── Formatters ────────────────────────────
+    const statusLabel=(s)=>({upcoming:'计划中',ongoing:'进行中',completed:'已完成'}[s]||s);
+    const formatDate=(d)=>{if(!d)return'';const dt=new Date(d+'T00:00:00');return`${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日`};
+    const formatDateRange=(a,b)=>b?`${formatDate(a)} → ${formatDate(b)}`:formatDate(a);
+    const tripDays=(t)=>{
+      if(!t.startDate) return 1;
+      const e=t.endDate?new Date(t.endDate):new Date(t.startDate);
+      return Math.max(1,Math.ceil((e-new Date(t.startDate))/(86400000))+1);
+    };
+    const catEmoji=(c)=>({attraction:'🏛️',food:'🍜',accommodation:'🏨',transport:'🚌',other:'📍'}[c]||'📍');
+    const catLabel=(c)=>({attraction:'景点',food:'餐饮',accommodation:'住宿',transport:'交通',other:'其他'}[c]||'其他');
+    const tripLocCount=(id)=>locations.value.filter(l=>l.tripId===id).length;
+    const listTotal=(id)=>packingItems.value.filter(i=>i.listId===id).length;
+    const listChecked=(id)=>packingItems.value.filter(i=>i.listId===id&&i.isChecked).length;
+    const listProgress=(id)=>{const t=listTotal(id);return t>0?listChecked(id)/t:0};
+
+    // ── Modal helpers ─────────────────────────
+    const openModal=(name)=>{
+      if(name==='addTrip'){Object.assign(form,{title:'',description:'',startDate:today(),endDate:'',status:'upcoming',tagsRaw:'',cover:null})}
+      if(name==='addLoc'){Object.assign(locForm,{name:'',category:'attraction',notes:'',lat:'',lng:'',tripId:currentTrip.value?.id||''})}
+      if(name==='addList'){Object.assign(listForm,{name:'',template:''})}
+      if(name==='addItem'){Object.assign(itemForm,{name:'',category:'其他'})}
+      modal.value=name;
+    };
+
+    // ── Trips CRUD ────────────────────────────
+    const openTrip=(t)=>currentTrip.value=t;
+
+    const saveTrip=()=>{
+      if(!form.title.trim()) return alert('请输入旅行标题');
+      const tags=form.tagsRaw.split(/[\s,，]+/).filter(Boolean);
+      if(modal.value==='addTrip'){
+        const t={id:uid(),title:form.title.trim(),description:form.description.trim()||null,
+          startDate:form.startDate,endDate:form.endDate||null,status:form.status,tags,cover:form.cover||null,
+          notes:'',createdAt:new Date().toISOString()};
+        trips.value.unshift(t);
+      } else {
+        const t=trips.value.find(x=>x.id===currentTrip.value.id);
+        if(t){Object.assign(t,{title:form.title.trim(),description:form.description.trim()||null,
+          startDate:form.startDate,endDate:form.endDate||null,status:form.status,tags,cover:form.cover??t.cover})}
+      }
+      saveAll(); modal.value='';
+    };
+
+    const editTrip=(t)=>{
+      Object.assign(form,{title:t.title,description:t.description||'',startDate:t.startDate,
+        endDate:t.endDate||'',status:t.status,tagsRaw:(t.tags||[]).join(' '),cover:t.cover||null});
+      modal.value='editTrip';
+    };
+
+    const deleteTrip=(t)=>{
+      if(!confirm(`确定删除「${t.title}」？`)) return;
+      trips.value=trips.value.filter(x=>x.id!==t.id);
+      locations.value=locations.value.filter(l=>l.tripId!==t.id);
+      currentTrip.value=null; saveAll();
+    };
+
+    const pickCover=(e)=>{
+      const file=e.target.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=(ev)=>form.cover=ev.target.result;
+      reader.readAsDataURL(file);
+    };
+
+    // ── Locations CRUD ────────────────────────
+    const saveLoc=()=>{
+      if(!locForm.name.trim()) return alert('请输入地点名称');
+      locations.value.push({id:uid(),tripId:currentTrip.value?.id||null,
+        name:locForm.name.trim(),category:locForm.category,notes:locForm.notes||null,
+        lat:locForm.lat?parseFloat(locForm.lat):null,lng:locForm.lng?parseFloat(locForm.lng):null,
+        createdAt:new Date().toISOString()});
+      saveAll(); modal.value='';
+    };
+
+    const saveMapLoc=()=>{
+      if(!locForm.name.trim()||!mapClickPos.value) return alert('请输入名称');
+      locations.value.push({id:uid(),tripId:locForm.tripId||null,
+        name:locForm.name.trim(),category:locForm.category,notes:locForm.notes||null,
+        lat:mapClickPos.value.lat,lng:mapClickPos.value.lng,
+        createdAt:new Date().toISOString()});
+      saveAll();
+      // Add marker to map
+      const emoji=catEmoji(locForm.category);
+      const marker=L.marker([mapClickPos.value.lat,mapClickPos.value.lng],{
+        icon:L.divIcon({html:`<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">${emoji}</div>`,
+          iconAnchor:[11,22],className:''})
+      }).addTo(leafletMap);
+      marker.bindPopup(`<b>${locForm.name}</b><br>${catLabel(locForm.category)}`);
+      modal.value='';
+    };
+
+    const deleteLoc=(loc)=>{
+      locations.value=locations.value.filter(l=>l.id!==loc.id);
+      saveAll();
+    };
+
+    // ── Packing CRUD ──────────────────────────
+    const openList=(l)=>{currentList.value=l;itemFilter.value=''};
+
+    const saveList=()=>{
+      if(!listForm.name.trim()) return alert('请输入清单名称');
+      const listId=uid();
+      packingLists.value.unshift({id:listId,name:listForm.name.trim(),createdAt:new Date().toISOString()});
+      if(listForm.template&&templateItems[listForm.template]){
+        templateItems[listForm.template].forEach(([name,category],i)=>{
+          packingItems.value.push({id:uid(),listId,name,category,isChecked:false,sortOrder:i});
+        });
+      }
+      saveAll(); modal.value='';
+      nextTick(()=>openList(packingLists.value[0]));
+    };
+
+    const deleteList=(list)=>{
+      if(!confirm(`删除「${list.name}」？`)) return;
+      packingLists.value=packingLists.value.filter(l=>l.id!==list.id);
+      packingItems.value=packingItems.value.filter(i=>i.listId!==list.id);
+      saveAll();
+    };
+
+    const saveItem=()=>{
+      if(!itemForm.name.trim()||!currentList.value) return alert('请输入名称');
+      packingItems.value.push({id:uid(),listId:currentList.value.id,
+        name:itemForm.name.trim(),category:itemForm.category,isChecked:false,
+        sortOrder:packingItems.value.length});
+      saveAll(); modal.value='';
+    };
+
+    const toggleItem=(item)=>{
+      item.isChecked=!item.isChecked; saveAll();
+    };
+
+    const deleteItem=(item)=>{
+      packingItems.value=packingItems.value.filter(i=>i.id!==item.id); saveAll();
+    };
+
+    const uncheckAll=()=>{
+      if(!currentList.value) return;
+      packingItems.value.forEach(i=>{if(i.listId===currentList.value.id) i.isChecked=false});
+      saveAll();
+    };
+
+    const quickAdd=(qi)=>{
+      if(!currentList.value) return;
+      const exists=packingItems.value.some(i=>i.listId===currentList.value.id&&i.name===qi[0]);
+      if(exists) return;
+      packingItems.value.push({id:uid(),listId:currentList.value.id,
+        name:qi[0],category:qi[1],isChecked:false,sortOrder:packingItems.value.length});
+      saveAll();
+    };
+
+    // ── Map ───────────────────────────────────
+    const initMap=async()=>{
+      await nextTick();
+      if(leafletMap){leafletMap.remove();leafletMap=null}
+      const mapEl=document.getElementById('leaflet-map');
+      if(!mapEl) return;
+
+      // Default center
+      let center=[35.86,104.19]; let zoom=4;
+      const locs=locations.value.filter(l=>l.lat&&l.lng);
+      if(locs.length>0){center=[locs[locs.length-1].lat,locs[locs.length-1].lng];zoom=12}
+
+      leafletMap=L.map('leaflet-map').setView(center,zoom);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        maxZoom:19,attribution:'© OpenStreetMap'
+      }).addTo(leafletMap);
+
+      // Add all saved locations as markers
+      locs.forEach(loc=>{
+        const emoji=catEmoji(loc.category);
+        const m=L.marker([loc.lat,loc.lng],{
+          icon:L.divIcon({html:`<div style="font-size:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">${emoji}</div>`,
+            iconAnchor:[11,22],className:''})
+        }).addTo(leafletMap);
+        m.bindPopup(`<b>${loc.name}</b><br>${catLabel(loc.category)}${loc.notes?'<br>'+loc.notes:''}`);
+      });
+
+      // Click to add
+      leafletMap.on('click',(e)=>{
+        mapClickPos.value=e.latlng;
+        Object.assign(locForm,{name:'',category:'attraction',notes:'',tripId:''});
+        modal.value='mapLoc';
+      });
+    };
+
+    const switchToMap=()=>{
+      tab.value=1;
+      nextTick(()=>initMap());
+    };
+
+    // ── Stats chart ───────────────────────────
+    const initChart=async()=>{
+      await nextTick();
+      const canvas=document.getElementById('monthlyChart');
+      if(!canvas) return;
+      if(chartInstance){chartInstance.destroy();chartInstance=null}
+
+      // Build last 6 months labels
+      const months=[];
+      for(let i=5;i>=0;i--){
+        const d=new Date(); d.setMonth(d.getMonth()-i);
+        months.push({label:`${d.getMonth()+1}月`,key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`});
+      }
+      const counts=months.map(m=>trips.value.filter(t=>t.startDate&&t.startDate.startsWith(m.key)).length);
+
+      chartInstance=new Chart(canvas,{
+        type:'bar',
+        data:{
+          labels:months.map(m=>m.label),
+          datasets:[{label:'旅行次数',data:counts,
+            backgroundColor:'rgba(232,84,26,.8)',borderRadius:6,borderSkipped:false}]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},
+            x:{grid:{display:false}}}}
+      });
+    };
+
+    return{
+      tab,modal,trips,locations,packingLists,packingItems,
+      currentTrip,currentList,search,statusFilter,itemFilter,
+      mapClickPos,focusTripId,form,locForm,listForm,itemForm,
+      filteredTrips,tripLocs,filteredItems,usedCategories,stats,milestones,
+      itemCategories,quickItems,templates,
+      statusLabel,formatDate,formatDateRange,tripDays,catEmoji,catLabel,
+      tripLocCount,listTotal,listChecked,listProgress,
+      openModal,openTrip,saveTrip,editTrip,deleteTrip,pickCover,
+      saveLoc,saveMapLoc,deleteLoc,
+      openList,saveList,deleteList,saveItem,toggleItem,deleteItem,uncheckAll,quickAdd,
+      switchToMap,initMap,initChart,saveAll
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
